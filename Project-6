@@ -1,0 +1,233 @@
+### PROJECT 6: Web Solution With WordPress
+## Step 1 — Prepare a Web Server
+## Attach all three volumes one by one to your Web Server EC2 instance
+## Open up the Linux terminal to begin configuration
+## Use `lsblk` command to inspect what block devices are attached to the server.
+
+![web1](./images/web1.png)
+
+## All devices in Linux reside in /dev/ directory. Inspect it with `ls /dev/` and make sure you see all 3 newly created block devices there
+
+![web2](./images/web2.png)
+
+Use `df -h` command to see all mounts and free space on your server
+
+![web3](./images/web3.png)
+
+## Use gdisk utility to create a single partition on each of the 3 disks
+## Starting with disk xvdf
+`sudo gdisk /dev/xvdf`
+
+![web4](./images/web4.png)
+
+## Use `lsblk` utility to view the newly configured partition on each of the 3 disks.
+
+![web6](./images/web6.png)
+
+## Install lvm2 package using `sudo yum install lvm2`. Run `sudo lvmdiskscan` command to check for available partitions.
+
+![web7](./images/web7.png)
+
+## Use pvcreate utility to mark each of 3 disks as physical volumes (PVs) to be used by LVM
+`sudo pvcreate /dev/xvdf1`
+`sudo pvcreate /dev/xvdg1`
+`sudo pvcreate /dev/xvdh1`
+
+![web8](./images/web8.png)
+
+## Verify that your Physical volume has been created successfully by running `sudo pvs`
+
+![web9](./images/web9.png)
+
+## Use vgcreate utility to add all 3 PVs to a volume group (VG). Name the VG webdata-vg
+`sudo vgcreate webdata-vg /dev/xvdh1 /dev/xvdg1 /dev/xvdf1`
+
+![web10](./images/web10.png)
+
+## Verify that your VG has been created successfully by running sudo `vgs`
+
+![web11](./images/web11.png)
+
+## Use lvcreate utility to create 2 logical volumes. apps-lv (Use half of the PV size), and logs-lv Use the remaining space of the PV size. NOTE: apps-lv will be used to store data for the Website while, logs-lv will be used to store data for logs.
+`sudo lvcreate -n apps-lv -L 14G webdata-vg`
+`sudo lvcreate -n logs-lv -L 14G webdata-vg`
+
+![web12](./images/web12.png)
+
+## Verify the entire setup
+`sudo vgdisplay -v #view complete setup - VG, PV, and LV`
+
+
+![web14](./images/web14.png)
+
+`sudo lsblk`
+
+![web16](./images/web16.png)
+
+## Use mkfs.ext4 to format the logical volumes with ext4 filesystem
+`sudo mkfs -t ext4 /dev/webdata-vg/apps-lv`
+
+`sudo mkfs -t ext4 /dev/webdata-vg/logs-lv`
+
+![web17](./images/web17.png)
+
+## Create /var/www/html directory to store website files
+`sudo mkdir -p /var/www/html`
+
+## Create /home/recovery/logs to store backup of log data
+`sudo mkdir -p /home/recovery/logs`
+
+![web18](./images/web18.png)
+
+## Mount /var/www/html on apps-lv logical volume
+`sudo mount /dev/webdata-vg/apps-lv /var/www/html/`
+
+## Use rsync utility to backup all the files in the log directory /var/log into /home/recovery/logs (This is required before mounting the file system)
+`sudo rsync -av /var/log/. /home/recovery/logs/`
+
+![web19](./images/web19.png)
+
+## Mount /var/log on logs-lv logical volume. (Note that all the existing data on /var/log will be deleted. That is why step above is very important)
+
+`sudo mount /dev/webdata-vg/logs-lv /var/log`
+
+
+## Restore log files back into /var/log directory
+`sudo rsync -av /home/recovery/logs/log/. /var/log`
+
+![web21](./images/web21.png)
+
+## Update /etc/fstab file so that the mount configuration will persist after restart of the server.
+
+## The UUID of the device will be used to update the /etc/fstab file;
+`sudo blkid`
+
+`sudo vi /etc/fstab`
+
+## Update /etc/fstab in this format using your own UUID and rememeber to remove the leading and ending quotes.
+
+## Test the configuration and reload the daemon
+`sudo mount -a`
+
+`sudo systemctl daemon-reload`
+
+## Verify your setup by running `df -h`, output must look like this:
+
+![web23](./images/web23.png)
+
+
+## Step 2 — Prepare the Database Server
+
+## Launch a second RedHat EC2 instance that will have a role – ‘DB Server’Repeat the same steps as for the Web Server, but instead of apps-lv create db-lv and mount it to /db directory instead of /var/www/html/.
+
+
+![db2](./images/db2.png)
+
+
+![db3](./images/db3.png)
+
+
+![db4](./images/db4.png)
+
+![db5](./images/db5.png)
+
+![db7](./images/db7.png)
+
+![db8](./images/db8.png)
+
+![db9](./images/db9.png)
+
+![db10](./images/db10.png)
+
+![db11](./images/db11.png)
+
+![db12](./images/db12.png)
+
+![db13](./images/db13.png)
+
+![db14](./images/db14.png)
+
+![db15](./images/db15.png)
+
+![db18](./images/db18.png)
+
+![db19](./images/db19.png)
+
+![db20](./images/db20.png)
+
+![db21](./images/db21.png)
+
+![db24](./images/db24.png)
+
+![db25](./images/db25.png)
+
+
+## Step 3 — Install WordPress on your Web Server EC2
+
+## Update the repository
+`sudo yum -y update`
+
+![web24](./images/web24.png)
+
+## Install wget, Apache and it’s dependencies
+`sudo yum -y install wget httpd php php-mysqlnd php-fpm php-json`
+
+![web25](./images/web25.png)
+
+## Start Apache
+`sudo systemctl enable httpd`
+`sudo systemctl start httpd`
+
+![web26](./images/web26.png)
+
+## To install PHP and it’s depemdencies
+`sudo yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm`
+
+`sudo yum install yum-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm`
+
+`sudo yum module list php`
+
+`sudo yum module reset php`
+
+`sudo yum module enable php:remi-7.4`
+
+`sudo yum install php php-opcache php-gd php-curl php-mysqlnd`
+
+`sudo systemctl start php-fpm`
+
+`sudo systemctl enable php-fpm`
+
+`setsebool -P httpd_execmem 1`
+
+## Restart Apache
+`sudo systemctl restart httpd`
+
+## Download wordpress and copy wordpress to var/www/html
+`mkdir wordpress`
+`cd   wordpress`
+`sudo wget http://wordpress.org/latest.tar.gz`
+`sudo tar xzvf latest.tar.gz`
+`sudo rm -rf latest.tar.gz`
+`cp wordpress/wp-config-sample.php wordpress/wp-config.php`
+`cp -R wordpress /var/www/html/`
+
+![web27](./images/web27.png)
+
+![web28](./images/web28.png)
+
+## Configure SELinux Policies
+`sudo chown -R apache:apache /var/www/html/wordpress`
+`sudo chcon -t httpd_sys_rw_content_t /var/www/html/wordpress -R`
+`sudo setsebool -P httpd_can_network_connect=1`
+
+![web29](./images/web29.png)
+
+## Step 4 — Install MySQL on your DB Server EC2
+
+
+![db26](./images/db26.png)
+
+![db27](./images/db27.png)
+
+![db28](./images/db28.png)
+
